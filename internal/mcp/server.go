@@ -1,0 +1,65 @@
+package mcp
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/jije/couchdb-mcp/internal/couchdb"
+	"github.com/jije/couchdb-mcp/internal/models"
+	"github.com/metoro-io/mcp-golang"
+	"github.com/metoro-io/mcp-golang/transport/stdio"
+)
+
+// Server encapsulates the MCP server and its dependencies.
+type Server struct {
+	mcpServer *mcp_golang.Server
+	dbClient  couchdb.Client
+}
+
+// GetNoteArgs defines the arguments for the get_note tool.
+type GetNoteArgs struct {
+	Title string `json:"title" jsonschema:"required,description=The title or path of the note to fetch (e.g. 'MyNote.md')"`
+}
+
+// UpdateNoteArgs defines the arguments for the update_note tool.
+type UpdateNoteArgs struct {
+	Title   string `json:"title" jsonschema:"required,description=The title or path of the note to update (e.g. 'MyNote.md')"`
+	Content string `json:"content" jsonschema:"required,description=The markdown content of the note"`
+}
+
+// NewServer initializes and configures the MCP server.
+func NewServer(dbClient couchdb.Client) *Server {
+	mcpServer := mcp_golang.NewServer(stdio.NewStdioServerTransport())
+	s := &Server{
+		mcpServer: mcpServer,
+		dbClient:  dbClient,
+	}
+	s.registerTools()
+	return s
+}
+
+func (s *Server) registerTools() {
+	s.mcpServer.RegisterTool("get_note", "Fetches a note from CouchDB", func(args GetNoteArgs) (*mcp_golang.ToolResponse, error) {
+		note, err := s.dbClient.GetNote(context.Background(), args.Title)
+		if err != nil {
+			return nil, fmt.Errorf("getting note: %w", err)
+		}
+		return mcp_golang.NewToolResponse(mcp_golang.NewTextContent(note.Content)), nil
+	})
+
+	s.mcpServer.RegisterTool("update_note", "Updates or creates a note in CouchDB", func(args UpdateNoteArgs) (*mcp_golang.ToolResponse, error) {
+		err := s.dbClient.UpdateNote(context.Background(), &models.Note{
+			Title:   args.Title,
+			Content: args.Content,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("updating note: %w", err)
+		}
+		return mcp_golang.NewToolResponse(mcp_golang.NewTextContent("Note updated successfully")), nil
+	})
+}
+
+// Serve starts the MCP server.
+func (s *Server) Serve() error {
+	return s.mcpServer.Serve()
+}
