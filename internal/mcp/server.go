@@ -38,6 +38,11 @@ type ListNotesArgs struct {
 type PingArgs struct {
 }
 
+// SearchNotesArgs defines the arguments for the search_notes tool.
+type SearchNotesArgs struct {
+	Query string `json:"query" jsonschema:"required,description=The search query to look for in note titles and content"`
+}
+
 // NewServer initializes and configures the MCP server with HTTP/Gin transport.
 func NewServer(dbClient couchdb.Client) *Server {
 	transport := http.NewGinTransport()
@@ -90,6 +95,25 @@ func (s *Server) registerTools() {
 			return nil, fmt.Errorf("ping failed for URL %s: %w", reqURL, err)
 		}
 		return mcp_golang.NewToolResponse(mcp_golang.NewTextContent(fmt.Sprintf("Successfully connected to CouchDB at %s", reqURL))), nil
+	})
+
+	s.mcpServer.RegisterTool("search_notes", "Searches for a keyword in all notes and returns snippets", func(args SearchNotesArgs) (*mcp_golang.ToolResponse, error) {
+		results, err := s.dbClient.SearchNotes(context.Background(), args.Query)
+		if err != nil {
+			return nil, fmt.Errorf("search failed: %w", err)
+		}
+
+		if len(results) == 0 {
+			return mcp_golang.NewToolResponse(mcp_golang.NewTextContent("No results found for: " + args.Query)), nil
+		}
+
+		var sb strings.Builder
+		sb.WriteString(fmt.Sprintf("Found %d results for '%s':\n\n", len(results), args.Query))
+		for _, res := range results {
+			sb.WriteString(fmt.Sprintf("### %s\n%s\n\n", res.Title, res.Snippet))
+		}
+
+		return mcp_golang.NewToolResponse(mcp_golang.NewTextContent(sb.String())), nil
 	})
 }
 
