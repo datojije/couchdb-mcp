@@ -4,16 +4,18 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/gin-gonic/gin"
 	"github.com/jije/couchdb-mcp/internal/couchdb"
 	"github.com/jije/couchdb-mcp/internal/models"
 	"github.com/metoro-io/mcp-golang"
-	"github.com/metoro-io/mcp-golang/transport/stdio"
+	"github.com/metoro-io/mcp-golang/transport/http"
 )
 
 // Server encapsulates the MCP server and its dependencies.
 type Server struct {
 	mcpServer *mcp_golang.Server
 	dbClient  couchdb.Client
+	transport *http.GinTransport
 }
 
 // GetNoteArgs defines the arguments for the get_note tool.
@@ -27,15 +29,22 @@ type UpdateNoteArgs struct {
 	Content string `json:"content" jsonschema:"required,description=The markdown content of the note"`
 }
 
-// NewServer initializes and configures the MCP server.
+// NewServer initializes and configures the MCP server with HTTP/Gin transport.
 func NewServer(dbClient couchdb.Client) *Server {
-	mcpServer := mcp_golang.NewServer(stdio.NewStdioServerTransport())
+	transport := http.NewGinTransport()
+	mcpServer := mcp_golang.NewServer(transport)
 	s := &Server{
 		mcpServer: mcpServer,
 		dbClient:  dbClient,
+		transport: transport,
 	}
 	s.registerTools()
 	return s
+}
+
+// Handler returns the Gin handler for the MCP server.
+func (s *Server) Handler() gin.HandlerFunc {
+	return s.transport.Handler()
 }
 
 func (s *Server) registerTools() {
@@ -59,7 +68,7 @@ func (s *Server) registerTools() {
 	})
 }
 
-// Serve starts the MCP server.
+// Serve starts the internal MCP server state.
 func (s *Server) Serve() error {
 	return s.mcpServer.Serve()
 }
