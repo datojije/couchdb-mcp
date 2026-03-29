@@ -73,8 +73,8 @@ func (c *client) SearchNotes(ctx context.Context, query string) ([]models.Search
 	queryLower := strings.ToLower(query)
 
 	for _, row := range all.Rows {
-		// Only process text/markdown notes
-		if row.Doc.Path == "" || row.Doc.Datatype != "plain" || strings.HasPrefix(row.ID, "_") {
+		// Only process documents that have a path and are NOT internal CouchDB docs
+		if row.Doc.Path == "" || strings.HasPrefix(row.ID, "_") {
 			continue
 		}
 
@@ -148,7 +148,7 @@ func (c *client) ListNotes(ctx context.Context) ([]string, error) {
 
 	var titles []string
 	for _, row := range result.Rows {
-		if row.Doc.Path != "" && row.Doc.Datatype == "plain" && !strings.HasPrefix(row.ID, "_") {
+		if row.Doc.Path != "" && !strings.HasPrefix(row.ID, "_") {
 			titles = append(titles, row.Doc.Path)
 		}
 	}
@@ -170,7 +170,6 @@ func (c *client) Ping(ctx context.Context) (string, error) {
 }
 
 func (c *client) GetNote(ctx context.Context, title string) (*models.Note, error) {
-	// To find by title/path, we must list docs and match the Path field
 	u, _ := url.Parse(c.config.CouchDBURL)
 	u.Path = strings.TrimSuffix(u.Path, "/") + "/_all_docs"
 	q := u.Query()
@@ -208,7 +207,6 @@ func (c *client) GetNote(ctx context.Context, title string) (*models.Note, error
 }
 
 func (c *client) UpdateNote(ctx context.Context, note *models.Note) error {
-	// Find existing doc by path
 	u, _ := url.Parse(c.config.CouchDBURL)
 	u.Path = strings.TrimSuffix(u.Path, "/") + "/_all_docs"
 	q := u.Query()
@@ -248,10 +246,8 @@ func (c *client) UpdateNote(ctx context.Context, note *models.Note) error {
 	if existingDoc != nil {
 		newDoc.Rev = existingDoc.Rev
 		docID = existingDoc.ID
+		newDoc.Datatype = existingDoc.Datatype
 	} else {
-		// Create a new ID. LiveSync usually uses f:<hash>.
-		// For simplicity, we'll use url.PathEscape(title) but the plugin might not see it.
-		// A better way is to use a UUID or simple ID.
 		docID = url.PathEscape(note.Title)
 	}
 
