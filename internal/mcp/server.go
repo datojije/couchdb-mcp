@@ -30,6 +30,10 @@ type UpdateNoteArgs struct {
 	Content string `json:"content" jsonschema:"required,description=The markdown content of the note"`
 }
 
+// ListNotesArgs defines the arguments for the list_notes tool.
+type ListNotesArgs struct {
+}
+
 // NewServer initializes and configures the MCP server with HTTP/Gin transport.
 func NewServer(dbClient couchdb.Client) *Server {
 	transport := http.NewGinTransport()
@@ -68,7 +72,7 @@ func (s *Server) registerTools() {
 		return mcp_golang.NewToolResponse(mcp_golang.NewTextContent("Note updated successfully")), nil
 	})
 
-	s.mcpServer.RegisterTool("list_notes", "Lists all note titles/paths in CouchDB", func(args struct{}) (*mcp_golang.ToolResponse, error) {
+	s.mcpServer.RegisterTool("list_notes", "Lists all note titles/paths in CouchDB", func(args ListNotesArgs) (*mcp_golang.ToolResponse, error) {
 		notes, err := s.dbClient.ListNotes(context.Background())
 		if err != nil {
 			return nil, fmt.Errorf("listing notes: %w", err)
