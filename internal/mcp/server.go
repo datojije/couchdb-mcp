@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jije/couchdb-mcp/internal/couchdb"
@@ -65,6 +66,14 @@ func (s *Server) registerTools() {
 			return nil, fmt.Errorf("updating note: %w", err)
 		}
 		return mcp_golang.NewToolResponse(mcp_golang.NewTextContent("Note updated successfully")), nil
+	})
+
+	s.mcpServer.RegisterTool("list_notes", "Lists all note titles/paths in CouchDB", func(args struct{}) (*mcp_golang.ToolResponse, error) {
+		notes, err := s.dbClient.ListNotes(context.Background())
+		if err != nil {
+			return nil, fmt.Errorf("listing notes: %w", err)
+		}
+		return mcp_golang.NewToolResponse(mcp_golang.NewTextContent("Available notes:\n" + strings.Join(notes, "\n"))), nil
 	})
 }
 

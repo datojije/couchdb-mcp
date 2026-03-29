@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/jije/couchdb-mcp/internal/config"
 	"github.com/jije/couchdb-mcp/internal/models"
@@ -18,6 +19,7 @@ import (
 type Client interface {
 	GetNote(ctx context.Context, title string) (*models.Note, error)
 	UpdateNote(ctx context.Context, note *models.Note) error
+	ListNotes(ctx context.Context) ([]string, error)
 }
 
 type client struct {
@@ -31,6 +33,45 @@ func NewClient(cfg *config.Config) Client {
 		httpClient: http.DefaultClient,
 		config:     cfg,
 	}
+}
+
+func (c *client) ListNotes(ctx context.Context) ([]string, error) {
+	reqURL := fmt.Sprintf("%s/_all_docs?include_docs=true", c.config.CouchDBURL)
+	req, err := http.NewRequestWithContext(ctx, "GET", reqURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if c.config.CouchDBUser != "" {
+		req.SetBasicAuth(c.config.CouchDBUser, c.config.CouchDBPass)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var result models.AllDocsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+
+	var titles []string
+	for _, row := range result.Rows {
+		// Filter for documents that have a path and are likely notes (plain datatype)
+		// and skip internal plugin docs or chunks
+		if row.Doc.Path != "" && row.Doc.Datatype == "plain" && !strings.HasPrefix(row.ID, "_") {
+			titles = append(titles, row.Doc.Path)
+		}
+	}
+
+	return titles, nil
 }
 
 func (c *client) GetNote(ctx context.Context, title string) (*models.Note, error) {
