@@ -34,6 +34,10 @@ type UpdateNoteArgs struct {
 type ListNotesArgs struct {
 }
 
+// PingArgs defines the arguments for the ping_couchdb tool.
+type PingArgs struct {
+}
+
 // NewServer initializes and configures the MCP server with HTTP/Gin transport.
 func NewServer(dbClient couchdb.Client) *Server {
 	transport := http.NewGinTransport()
@@ -78,6 +82,14 @@ func (s *Server) registerTools() {
 			return nil, fmt.Errorf("listing notes: %w", err)
 		}
 		return mcp_golang.NewToolResponse(mcp_golang.NewTextContent("Available notes:\n" + strings.Join(notes, "\n"))), nil
+	})
+
+	s.mcpServer.RegisterTool("ping_couchdb", "Checks connection to CouchDB and returns the target URL", func(args PingArgs) (*mcp_golang.ToolResponse, error) {
+		reqURL, err := s.dbClient.Ping(context.Background())
+		if err != nil {
+			return nil, fmt.Errorf("ping failed for URL %s: %w", reqURL, err)
+		}
+		return mcp_golang.NewToolResponse(mcp_golang.NewTextContent(fmt.Sprintf("Successfully connected to CouchDB at %s", reqURL))), nil
 	})
 }
 
