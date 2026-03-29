@@ -1,84 +1,67 @@
 # CouchDB MCP Server for Obsidian (Remote/Railway)
 
-A professional-grade Model Context Protocol (MCP) server written in Go that allows LLMs to read and write Obsidian notes stored in a CouchDB instance. This version supports **HTTP transport**, making it ideal for deployment on platforms like Railway.
+A professional-grade Model Context Protocol (MCP) server written in Go that allows LLMs to read and write Obsidian notes stored in a CouchDB instance. This is specifically designed for use with the [Obsidian Self-hosted LiveSync](https://github.com/vrtmrz/obsidian-livesync) plugin and optimized for remote deployment on **Railway**.
 
 ## Features
 
-- **Remote Access**: Uses HTTP transport (POST `/mcp`) to allow connections from remote LLM clients.
-- **Secure**: Includes Bearer Token (API Key) authentication to protect your notes.
-- **Automatic Sync**: Designed for [Obsidian Self-hosted LiveSync](https://github.com/vrtmrz/obsidian-livesync).
-- **Modular Architecture**: Clean, testable Go code.
+- **Authenticated HTTP Transport**: Securely expose your MCP server to remote clients using Bearer tokens.
+- **CouchDB Integration**: Seamlessly read and write notes to your CouchDB database.
+- **Base64 Management**: Automatically handles Base64 encoding/decoding for note content, as required by the LiveSync plugin.
+- **Clean Architecture**: Modular Go design (internal/config, internal/couchdb, internal/mcp) for maximum maintainability.
+- **Docker Ready**: Includes a multi-stage `Dockerfile` for efficient deployments.
 
 ## Prerequisites
 
-- [Go 1.21+](https://golang.org/doc/install)
-- A CouchDB instance (e.g., hosted on Railway)
-- A Railway account (for deployment)
+- [Go 1.25.7+](https://golang.org/doc/install)
+- A CouchDB instance (hosted on Railway or elsewhere)
+- A Railway account for hosting this MCP server
 
 ## Configuration
 
-The server is configured via environment variables:
+The server is configured entirely via environment variables:
 
-| Variable | Description |
-|----------|-------------|
-| `COUCHDB_URL` | The full URL to your CouchDB database |
-| `COUCHDB_USER` | Your CouchDB username |
-| `COUCHDB_PASS` | Your CouchDB password |
-| `PORT` | The port the server listens on (default: 8080) |
-| `MCP_API_KEY` | **Highly Recommended**: A secret token used for Bearer authentication. |
+| Variable | Requirement | Description |
+|----------|-------------|-------------|
+| `COUCHDB_URL` | **Required** | The full URL to your CouchDB database (e.g., `https://.../db_name`) |
+| `COUCHDB_USER` | **Optional** | Your CouchDB username (if authentication is enabled) |
+| `COUCHDB_PASS` | **Optional** | Your CouchDB password (if authentication is enabled) |
+| `MCP_API_KEY` | **Required** | Your secret token. Requests MUST include `Authorization: Bearer <token>` |
+| `PORT` | Optional | The port to listen on (default: `8080`, automatically set by Railway) |
+| `GIN_MODE` | Optional | Set to `release` for production (default: `release`) |
 
 ## Deployment to Railway
 
-1.  **Fork or Push** this repository to your GitHub.
-2.  **Create a New Project** on Railway.
-3.  **Connect your Repository**.
-4.  **Add Environment Variables**: Ensure you set `COUCHDB_URL`, `COUCHDB_USER`, `COUCHDB_PASS`, and `MCP_API_KEY`.
-5.  Railway will automatically detect the `Dockerfile` and deploy the service.
+1. **GitHub Connection**: Push this repository to your GitHub account.
+2. **New Service**: On Railway, click **New** -> **GitHub Repo** and select this repository.
+3. **Variables**: Go to the **Variables** tab and add all the required environment variables mentioned above.
+4. **Deploy**: Railway will detect the `Dockerfile` and deploy the server automatically.
 
-## Connecting to your Remote MCP Server
+## How to Connect
 
-### 1. Direct HTTP Connection
+Once deployed, your server endpoint is: `https://your-service-name.up.railway.app/mcp`
 
-Your MCP endpoint will be at: `https://your-railway-url.up.railway.app/mcp`
+### Security (Authentication)
 
-### 2. Authorization
+Every request to your MCP server must include an `Authorization` header. If the header is missing or the token doesn't match your `MCP_API_KEY`, the server will return `401 Unauthorized`.
 
-Clients must include the following header:
+**Header Format:**
 ```text
-Authorization: Bearer <YOUR_MCP_API_KEY>
+Authorization: Bearer YOUR_MCP_API_KEY
 ```
 
-### 3. Example Client Config (Claude Desktop Proxy)
-
-Since Claude Desktop primarily supports `stdio`, you can use a local "proxy" script to connect it to your remote Railway server:
-
-```json
-{
-  "mcpServers": {
-    "remote-obsidian": {
-      "command": "curl",
-      "args": [
-        "-X", "POST",
-        "-H", "Content-Type: application/json",
-        "-H", "Authorization: Bearer <YOUR_MCP_API_KEY>",
-        "-d", "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\",\"params\":{}}",
-        "https://your-railway-url.up.railway.app/mcp"
-      ]
-    }
-  }
-}
-```
-*(Note: A more robust proxy utility is recommended for full bidirectional support.)*
-
-## Development
+## Local Development
 
 ```bash
+# Clone the repository
+git clone git@github.com:datojije/couchdb-mcp.git
+cd couchdb-mcp
+
 # Install dependencies
 go mod tidy
 
-# Run locally
-export COUCHDB_URL="..."
-export MCP_API_KEY="supersecret"
+# Set environment variables and run
+export COUCHDB_URL="https://..."
+export MCP_API_KEY="my-secret-key"
 go run cmd/server/main.go
 ```
 
