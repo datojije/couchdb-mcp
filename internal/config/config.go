@@ -13,6 +13,7 @@ type Config struct {
 	CouchDBPass string
 	Port        string
 	MCPAPIKey   string
+	PublicURL   string // Required for SSE transport (e.g. https://you.up.railway.app)
 }
 
 // LoadConfig fetches and validates configuration from environment variables.
@@ -24,7 +25,13 @@ func LoadConfig() (*Config, error) {
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8080" // Default port
+		port = "8080"
+	}
+
+	publicURL := os.Getenv("PUBLIC_URL")
+	if publicURL == "" {
+		// Fallback for local dev
+		publicURL = "http://localhost:" + port
 	}
 
 	return &Config{
@@ -33,5 +40,6 @@ func LoadConfig() (*Config, error) {
 		CouchDBPass: os.Getenv("COUCHDB_PASS"),
 		Port:        port,
 		MCPAPIKey:   os.Getenv("MCP_API_KEY"),
+		PublicURL:   strings.TrimSuffix(publicURL, "/"),
 	}, nil
 }

@@ -1,69 +1,54 @@
 # CouchDB MCP Server for Obsidian (Remote/Railway)
 
-A professional-grade Model Context Protocol (MCP) server written in Go that allows LLMs to read and write Obsidian notes stored in a CouchDB instance. This is specifically designed for use with the [Obsidian Self-hosted LiveSync](https://github.com/vrtmrz/obsidian-livesync) plugin and optimized for remote deployment on **Railway**.
+A professional-grade Model Context Protocol (MCP) server written in Go that allows LLMs to read and write Obsidian notes stored in a CouchDB instance. This version supports **SSE (Server-Sent Events) transport**, which is the official standard for remote MCP connections.
 
 ## Features
 
-- **Authenticated HTTP Transport**: Securely expose your MCP server to remote clients using Bearer tokens.
-- **CouchDB Integration**: Seamlessly read and write notes to your CouchDB database.
-- **Base64 Management**: Automatically handles Base64 encoding/decoding for note content, as required by the LiveSync plugin.
-- **Clean Architecture**: Modular Go design (internal/config, internal/couchdb, internal/mcp) for maximum maintainability.
-- **Docker Ready**: Includes a multi-stage `Dockerfile` for efficient deployments.
+- **SSE Transport**: Fully compliant with the MCP spec for remote clients (Claude, Gemini CLI, etc.)
+- **Two-Step Protocol**: Uses `/sse` for the stream and `/message` for JSON-RPC commands.
+- **Secure**: Includes Bearer Token (API Key) authentication.
+- **Search & Discovery**: Includes `search_notes` and `list_notes` for powerful note retrieval.
 
 ## Prerequisites
 
 - [Go 1.25.7+](https://golang.org/doc/install)
-- A CouchDB instance (hosted on Railway or elsewhere)
-- A Railway account for hosting this MCP server
+- A CouchDB instance (e.g., hosted on Railway)
 
 ## Configuration
 
-The server is configured entirely via environment variables:
+The server is configured via environment variables:
 
 | Variable | Requirement | Description |
 |----------|-------------|-------------|
-| `COUCHDB_URL` | **Required** | The full URL to your CouchDB database (e.g., `https://.../db_name`) |
-| `COUCHDB_USER` | **Optional** | Your CouchDB username (if authentication is enabled) |
-| `COUCHDB_PASS` | **Optional** | Your CouchDB password (if authentication is enabled) |
-| `MCP_API_KEY` | **Required** | Your secret token. Requests MUST include `Authorization: Bearer <token>` |
-| `PORT` | Optional | The port to listen on (default: `8080`, automatically set by Railway) |
-| `GIN_MODE` | Optional | Set to `release` for production (default: `release`) |
+| `COUCHDB_URL` | **Required** | The full URL to your CouchDB database (e.g., `http://...:5984/db_name`) |
+| `COUCHDB_USER` | Optional | Your CouchDB username |
+| `COUCHDB_PASS` | Optional | Your CouchDB password |
+| `MCP_API_KEY` | **Required** | Secret token. Must be sent in the `Authorization: Bearer <token>` header. |
+| `PUBLIC_URL` | **Required** | Your public Railway URL (e.g., `https://your-app.up.railway.app`) |
+| `PORT` | Optional | The port to listen on (default: 8080) |
 
 ## Deployment to Railway
 
-1. **GitHub Connection**: Push this repository to your GitHub account.
-2. **New Service**: On Railway, click **New** -> **GitHub Repo** and select this repository.
-3. **Variables**: Go to the **Variables** tab and add all the required environment variables mentioned above.
-4. **Deploy**: Railway will detect the `Dockerfile` and deploy the server automatically.
+1. **Fork or Push** this repository to your GitHub.
+2. **Create a New Project** on Railway and connect your Repo.
+3. **Add Variables**: Ensure you set `COUCHDB_URL`, `MCP_API_KEY`, and `PUBLIC_URL`.
+4. Railway will automatically build and deploy using the `Dockerfile`.
 
-## How to Connect
+## Connecting to Gemini CLI
 
-Once deployed, your server endpoint is: `https://your-service-name.up.railway.app/mcp`
-
-### Security (Authentication)
-
-Every request to your MCP server must include an `Authorization` header. If the header is missing or the token doesn't match your `MCP_API_KEY`, the server will return `401 Unauthorized`.
-
-**Header Format:**
-```text
-Authorization: Bearer YOUR_MCP_API_KEY
-```
-
-## Local Development
+To add this remote server to your Gemini CLI, use the `/sse` endpoint:
 
 ```bash
-# Clone the repository
-git clone git@github.com:datojije/couchdb-mcp.git
-cd couchdb-mcp
-
-# Install dependencies
-go mod tidy
-
-# Set environment variables and run
-export COUCHDB_URL="https://..."
-export MCP_API_KEY="my-secret-key"
-go run cmd/server/main.go
+gemini mcp add --transport http --header "Authorization: Bearer <YOUR_API_KEY>" obsidian-remote https://your-app.up.railway.app/sse
 ```
+
+## Available Tools
+
+- `list_notes`: List all notes in your vault.
+- `get_note(title)`: Fetch the content of a specific note.
+- `update_note(title, content)`: Update or create a note.
+- `search_notes(query)`: Search for a keyword in all notes.
+- `ping_couchdb`: Test the connection between the MCP server and CouchDB.
 
 ## License
 

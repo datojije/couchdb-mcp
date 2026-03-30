@@ -27,15 +27,9 @@ func main() {
 	// Initialize CouchDB client
 	dbClient := couchdb.NewClient(cfg)
 
-	// Initialize MCP server with Gin transport
-	mcpServer := mcp.NewServer(dbClient)
-
-	// Start the internal MCP server state in a goroutine
-	go func() {
-		if err := mcpServer.Serve(); err != nil {
-			slog.Error("MCP internal server error", "error", err)
-		}
-	}()
+	// Initialize MCP server with SSE transport
+	// Note: mark3labs/mcp-go handles the MCP logic internally
+	mcpServer := mcp.NewServer(dbClient, cfg.PublicURL)
 
 	// Set up Gin router
 	if os.Getenv("GIN_MODE") == "" {
@@ -52,7 +46,17 @@ func main() {
 
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization header is required"})
+			// For SSE, some clients might send the token in a query parameter if headers aren't possible
+			authHeader = c.Query("token")
+			if authHeader != "" {
+				if authHeader != cfg.MCPAPIKey {
+					c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid API key"})
+					return
+				}
+				c.Next()
+				return
+			}
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization header or token query param is required"})
 			return
 		}
 
@@ -63,22 +67,29 @@ func main() {
 		}
 
 		if parts[1] != cfg.MCPAPIKey {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid API key"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.StatusText(http.StatusUnauthorized))
 			return
 		}
 
 		c.Next()
 	}
 
-	// Register MCP endpoint with authentication
-	router.POST("/mcp", authMiddleware, mcpServer.Handler())
+	// SSE Endpoint: The client connects here to receive events
+	router.GET("/sse", authMiddleware, func(c *gin.Context) {
+		mcpServer.HandleSSE()(c.Writer, c.Request)
+	})
+
+	// Message Endpoint: The client posts JSON-RPC messages here
+	router.POST("/message", authMiddleware, func(c *gin.Context) {
+		mcpServer.HandleMessage()(c.Writer, c.Request)
+	})
 
 	// Health check endpoint
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
-	slog.Info("starting HTTP MCP server", "port", cfg.Port)
+	slog.Info("starting SSE MCP server", "port", cfg.Port, "public_url", cfg.PublicURL)
 
 	// Start the HTTP server
 	if err := router.Run(":" + cfg.Port); err != nil {
