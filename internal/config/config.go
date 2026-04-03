@@ -30,8 +30,16 @@ func LoadConfig() (*Config, error) {
 
 	publicURL := os.Getenv("PUBLIC_URL")
 	if publicURL == "" {
-		// Fallback for local dev
 		publicURL = "http://localhost:" + port
+	}
+
+	// AAA Grade: Ensure PublicURL has a scheme
+	if !strings.HasPrefix(publicURL, "http://") && !strings.HasPrefix(publicURL, "https://") {
+		if strings.HasPrefix(publicURL, "localhost") || strings.HasPrefix(publicURL, "127.0.0.1") {
+			publicURL = "http://" + publicURL
+		} else {
+			publicURL = "https://" + publicURL
+		}
 	}
 
 	return &Config{

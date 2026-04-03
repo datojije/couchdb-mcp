@@ -73,13 +73,13 @@ func main() {
 	}
 
 	// Delegate MCP routes to the mcpServer handler
-	// The library's ServeHTTP will handle both /sse and /message correctly
+	// AAA Grade: Allow both GET and POST for maximum compatibility
 	mcpHandler := func(c *gin.Context) {
 		mcpServer.ServeHTTP(c.Writer, c.Request)
 	}
 
-	router.GET("/sse", authMiddleware, mcpHandler)
-	router.POST("/message", authMiddleware, mcpHandler)
+	router.Match([]string{"GET", "POST"}, "/sse", authMiddleware, mcpHandler)
+	router.Match([]string{"GET", "POST"}, "/message", authMiddleware, mcpHandler)
 
 	// Health check endpoint
 	router.GET("/health", func(c *gin.Context) {
