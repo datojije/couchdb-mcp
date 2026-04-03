@@ -73,13 +73,13 @@ func main() {
 	}
 
 	// Delegate MCP routes to the mcpServer handler
-	// AAA Grade: Allow both GET and POST for maximum compatibility
+	// AAA Grade: Use Any() to allow all methods (GET, POST, OPTIONS, etc.)
 	mcpHandler := func(c *gin.Context) {
 		mcpServer.ServeHTTP(c.Writer, c.Request)
 	}
 
-	router.Match([]string{"GET", "POST"}, "/sse", authMiddleware, mcpHandler)
-	router.Match([]string{"GET", "POST"}, "/message", authMiddleware, mcpHandler)
+	router.Any("/sse", authMiddleware, mcpHandler)
+	router.Any("/message", authMiddleware, mcpHandler)
 
 	// Health check endpoint
 	router.GET("/health", func(c *gin.Context) {
