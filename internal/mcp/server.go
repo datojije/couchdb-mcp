@@ -23,8 +23,8 @@ type Server struct {
 func NewServer(dbClient couchdb.Client, publicURL string) *Server {
 	mcpServer := server.NewMCPServer("CouchDB Obsidian Server", "1.0.0")
 	
-	// We pass the public URL which the client will use to send messages back
-	sseServer := server.NewSSEServer(mcpServer, publicURL)
+	// Use WithBaseURL option for the SSE server
+	sseServer := server.NewSSEServer(mcpServer, server.WithBaseURL(publicURL))
 
 	s := &Server{
 		mcpServer: mcpServer,
@@ -36,23 +36,23 @@ func NewServer(dbClient couchdb.Client, publicURL string) *Server {
 }
 
 // HandleSSE returns the handler for the SSE stream.
-func (s *Server) HandleSSE() http.HandlerFunc {
-	return s.sseServer.HandleMessage()
+func (s *Server) HandleSSE() http.Handler {
+	return s.sseServer.SSEHandler()
 }
 
 // HandleMessage returns the handler for incoming JSON-RPC messages.
-func (s *Server) HandleMessage() http.HandlerFunc {
-	return s.sseServer.HandlePostMessage()
+func (s *Server) HandleMessage() http.Handler {
+	return s.sseServer.MessageHandler()
 }
 
 func (s *Server) registerTools() {
 	// get_note tool
 	getNoteTool := mcp.NewTool("get_note",
 		mcp.WithDescription("Fetches a note from CouchDB"),
-		mcp.WithString("title", mcp.Required(), mcp.WithDescription("The title or path of the note to fetch (e.g. 'MyNote.md')")),
+		mcp.WithString("title", mcp.Required(), mcp.Description("The title or path of the note to fetch (e.g. 'MyNote.md')")),
 	)
 	s.mcpServer.AddTool(getNoteTool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		title, _ := req.Arguments["title"].(string)
+		title := req.GetString("title", "")
 		note, err := s.dbClient.GetNote(ctx, title)
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("getting note: %v", err)), nil
@@ -63,12 +63,12 @@ func (s *Server) registerTools() {
 	// update_note tool
 	updateNoteTool := mcp.NewTool("update_note",
 		mcp.WithDescription("Updates or creates a note in CouchDB"),
-		mcp.WithString("title", mcp.Required(), mcp.WithDescription("The title or path of the note to update (e.g. 'MyNote.md')")),
-		mcp.WithString("content", mcp.Required(), mcp.WithDescription("The markdown content of the note")),
+		mcp.WithString("title", mcp.Required(), mcp.Description("The title or path of the note to update (e.g. 'MyNote.md')")),
+		mcp.WithString("content", mcp.Required(), mcp.Description("The markdown content of the note")),
 	)
 	s.mcpServer.AddTool(updateNoteTool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		title, _ := req.Arguments["title"].(string)
-		content, _ := req.Arguments["content"].(string)
+		title := req.GetString("title", "")
+		content := req.GetString("content", "")
 		err := s.dbClient.UpdateNote(ctx, &models.Note{
 			Title:   title,
 			Content: content,
@@ -106,10 +106,10 @@ func (s *Server) registerTools() {
 	// search_notes tool
 	searchTool := mcp.NewTool("search_notes",
 		mcp.WithDescription("Searches for a keyword in all notes and returns snippets"),
-		mcp.WithString("query", mcp.Required(), mcp.WithDescription("The search query to look for in note titles and content")),
+		mcp.WithString("query", mcp.Required(), mcp.Description("The search query to look for in note titles and content")),
 	)
 	s.mcpServer.AddTool(searchTool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		query, _ := req.Arguments["query"].(string)
+		query := req.GetString("query", "")
 		results, err := s.dbClient.SearchNotes(ctx, query)
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("search failed: %v", err)), nil

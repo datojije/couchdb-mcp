@@ -28,7 +28,6 @@ func main() {
 	dbClient := couchdb.NewClient(cfg)
 
 	// Initialize MCP server with SSE transport
-	// Note: mark3labs/mcp-go handles the MCP logic internally
 	mcpServer := mcp.NewServer(dbClient, cfg.PublicURL)
 
 	// Set up Gin router
@@ -46,7 +45,6 @@ func main() {
 
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
-			// For SSE, some clients might send the token in a query parameter if headers aren't possible
 			authHeader = c.Query("token")
 			if authHeader != "" {
 				if authHeader != cfg.MCPAPIKey {
@@ -67,7 +65,7 @@ func main() {
 		}
 
 		if parts[1] != cfg.MCPAPIKey {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.StatusText(http.StatusUnauthorized))
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": http.StatusText(http.StatusUnauthorized)})
 			return
 		}
 
@@ -76,12 +74,12 @@ func main() {
 
 	// SSE Endpoint: The client connects here to receive events
 	router.GET("/sse", authMiddleware, func(c *gin.Context) {
-		mcpServer.HandleSSE()(c.Writer, c.Request)
+		mcpServer.HandleSSE().ServeHTTP(c.Writer, c.Request)
 	})
 
 	// Message Endpoint: The client posts JSON-RPC messages here
 	router.POST("/message", authMiddleware, func(c *gin.Context) {
-		mcpServer.HandleMessage()(c.Writer, c.Request)
+		mcpServer.HandleMessage().ServeHTTP(c.Writer, c.Request)
 	})
 
 	// Health check endpoint

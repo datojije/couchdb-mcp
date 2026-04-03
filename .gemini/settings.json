@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "obsidian-remote": {
-      "url": "https://couchdb-mcp-production.up.railway.app/mcp",
+      "url": "https://couchdb-mcp-production.up.railway.app/sse",
       "type": "http",
       "headers": {
         "Authorization": "Bearer 1317bc69-b6c6-40d4-bf8b-cf3a6ebc7b00"
