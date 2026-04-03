@@ -23,8 +23,12 @@ type Server struct {
 func NewServer(dbClient couchdb.Client, publicURL string) *Server {
 	mcpServer := server.NewMCPServer("CouchDB Obsidian Server", "1.0.0")
 	
-	// Use WithBaseURL option for the SSE server
-	sseServer := server.NewSSEServer(mcpServer, server.WithBaseURL(publicURL))
+	// Explicitly set the endpoints to match our Gin routing
+	sseServer := server.NewSSEServer(mcpServer, 
+		server.WithBaseURL(publicURL),
+		server.WithSSEEndpoint("/sse"),
+		server.WithMessageEndpoint("/message"),
+	)
 
 	s := &Server{
 		mcpServer: mcpServer,
@@ -35,14 +39,9 @@ func NewServer(dbClient couchdb.Client, publicURL string) *Server {
 	return s
 }
 
-// HandleSSE returns the handler for the SSE stream.
-func (s *Server) HandleSSE() http.Handler {
-	return s.sseServer.SSEHandler()
-}
-
-// HandleMessage returns the handler for incoming JSON-RPC messages.
-func (s *Server) HandleMessage() http.Handler {
-	return s.sseServer.MessageHandler()
+// ServeHTTP implements the http.Handler interface to let the library handle routing
+func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	s.sseServer.ServeHTTP(w, r)
 }
 
 func (s *Server) registerTools() {

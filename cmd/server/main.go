@@ -72,15 +72,14 @@ func main() {
 		c.Next()
 	}
 
-	// SSE Endpoint: The client connects here to receive events
-	router.GET("/sse", authMiddleware, func(c *gin.Context) {
-		mcpServer.HandleSSE().ServeHTTP(c.Writer, c.Request)
-	})
+	// Delegate MCP routes to the mcpServer handler
+	// The library's ServeHTTP will handle both /sse and /message correctly
+	mcpHandler := func(c *gin.Context) {
+		mcpServer.ServeHTTP(c.Writer, c.Request)
+	}
 
-	// Message Endpoint: The client posts JSON-RPC messages here
-	router.POST("/message", authMiddleware, func(c *gin.Context) {
-		mcpServer.HandleMessage().ServeHTTP(c.Writer, c.Request)
-	})
+	router.GET("/sse", authMiddleware, mcpHandler)
+	router.POST("/message", authMiddleware, mcpHandler)
 
 	// Health check endpoint
 	router.GET("/health", func(c *gin.Context) {
